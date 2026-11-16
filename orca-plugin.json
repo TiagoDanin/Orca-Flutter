@@ -17,6 +17,9 @@
     { "kind": "terminal:send" }
   ],
   "contributes": {
+    "panels": [
+      { "id": "flutter", "title": "Flutter", "icon": "layers", "entry": "src/panel.tsx", "ui": "components" }
+    ],
     "commands": [
       { "id": "flutter.createProject", "title": "Flutter: Create Project", "when": "workspace" },
       { "id": "flutter.doctor", "title": "Flutter: Run Flutter Doctor", "when": "workspace" },

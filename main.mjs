@@ -21,14 +21,24 @@ async function runInTerminal(orca, title, args, { enter = true } = {}) {
   return text
 }
 
+// One table feeds the command palette (`flutter.<id>`) and the sidebar panel (`flutter.run`).
+const COMMANDS = {
+  createProject: { title: 'Flutter: Create Project', args: 'create ', enter: false },
+  doctor: { title: 'Flutter: Doctor', args: 'doctor -v' },
+  upgrade: { title: 'Flutter: Upgrade', args: 'upgrade' },
+  test: { title: 'Flutter: Test', args: 'test' },
+  testCoverage: { title: 'Flutter: Test with Coverage', args: 'test --coverage' }
+}
+
+const run = (orca, { title, args, enter }) => runInTerminal(orca, title, args, { enter: enter !== false })
+
 export default function activate(orca) {
-  orca.commands.register('flutter.createProject', () =>
-    runInTerminal(orca, 'Flutter: Create Project', 'create ', { enter: false })
-  )
-  orca.commands.register('flutter.doctor', () => runInTerminal(orca, 'Flutter: Doctor', 'doctor -v'))
-  orca.commands.register('flutter.upgrade', () => runInTerminal(orca, 'Flutter: Upgrade', 'upgrade'))
-  orca.commands.register('flutter.test', () => runInTerminal(orca, 'Flutter: Test', 'test'))
-  orca.commands.register('flutter.testCoverage', () =>
-    runInTerminal(orca, 'Flutter: Test with Coverage', 'test --coverage')
-  )
+  for (const [id, command] of Object.entries(COMMANDS)) {
+    orca.commands.register(`flutter.${id}`, () => run(orca, command))
+  }
+  // The panel is a trust boundary: only ids from the table run, never an arbitrary string.
+  orca.panels.handle('flutter.run', async ({ id }) => {
+    if (!Object.hasOwn(COMMANDS, id)) throw new Error(`Unknown Flutter command: ${id}`)
+    return { command: await run(orca, COMMANDS[id]) }
+  })
 }
