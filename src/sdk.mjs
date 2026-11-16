@@ -9,7 +9,14 @@ export function findFvmRoot(dir) {
   }
 }
 
+const pinned = (dir) => Boolean(dir && findFvmRoot(dir))
+
 // `fvm flutter` runs the SDK pinned by the project; without a pin, plain `flutter` from PATH.
 export function flutterCommand(dir) {
-  return dir && findFvmRoot(dir) ? 'fvm flutter' : 'flutter'
+  return pinned(dir) ? 'fvm flutter' : 'flutter'
+}
+
+// Same rule for `dart`, so build_runner runs on the pinned SDK too.
+export function dartCommand(dir) {
+  return pinned(dir) ? 'fvm dart' : 'dart'
 }
