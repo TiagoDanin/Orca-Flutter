@@ -1,6 +1,0 @@
-[submodule "submodules/Flutter"]
-	path = submodules/Flutter
-	url = https://github.com/Dart-Code/Flutter.git
-[submodule "submodules/Dart-Code"]
-	path = submodules/Dart-Code
-	url = https://github.com/Dart-Code/Dart-Code.git
