@@ -1,15 +1,34 @@
 {
   "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
   "manifestVersion": 2,
-  "execution": "data",
+  "execution": "trusted-worker",
   "id": "flutter",
   "name": "Flutter",
   "version": "0.1.0",
   "description": "Flutter and Dart support for Orca",
   "author": { "name": "Tiago Danin" },
   "license": "MIT",
-  "engines": { "orca": ">=1.4.246" },
+  "engines": { "orca": ">=1.4.259" },
+  "pluginApi": 1,
+  "main": "main.mjs",
+  "capabilities": [
+    { "kind": "workspace:read" },
+    { "kind": "workspace:write" },
+    { "kind": "terminal:send" }
+  ],
   "contributes": {
+    "commands": [
+      { "id": "flutter.createProject", "title": "Flutter: Create Project", "when": "workspace" },
+      { "id": "flutter.doctor", "title": "Flutter: Run Flutter Doctor", "when": "workspace" },
+      { "id": "flutter.upgrade", "title": "Flutter: Run Flutter Upgrade", "when": "workspace" },
+      { "id": "flutter.test", "title": "Flutter: Run Tests", "when": "workspace" },
+      { "id": "flutter.testCoverage", "title": "Flutter: Run Tests with Coverage", "when": "workspace" }
+    ],
+    "keybindings": [
+      { "command": "flutter.doctor", "key": "Mod+Shift+S", "when": "workspace" },
+      { "command": "flutter.test", "key": "Mod+Shift+U", "when": "workspace" },
+      { "command": "flutter.createProject", "key": "Mod+Shift+P", "when": "workspace" }
+    ],
     "syntaxes": [
       {
         "id": "dart",
