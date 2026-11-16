@@ -4,47 +4,284 @@
   "execution": "trusted-worker",
   "id": "flutter",
   "name": "Flutter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Flutter and Dart support for Orca",
-  "author": { "name": "Tiago Danin" },
+  "author": {
+    "name": "Tiago Danin"
+  },
   "license": "MIT",
   "icon": "assets/icon.png",
-  "engines": { "orca": ">=1.4.259" },
+  "engines": {
+    "orca": ">=1.4.259"
+  },
   "pluginApi": 1,
   "main": "main.mjs",
   "capabilities": [
-    { "kind": "workspace:read" },
-    { "kind": "workspace:write" },
-    { "kind": "terminal:send" },
-    { "kind": "terminal:read" },
-    { "kind": "storage:own" }
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "workspace:write"
+    },
+    {
+      "kind": "terminal:send"
+    },
+    {
+      "kind": "terminal:read"
+    },
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    }
   ],
   "contributes": {
     "panels": [
-      { "id": "flutter", "title": "Flutter", "icon": "layers", "entry": "src/panel.tsx", "ui": "components" }
+      {
+        "id": "flutter",
+        "title": "Flutter",
+        "icon": "layers",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
     ],
     "commands": [
-      { "id": "flutter.run", "title": "Flutter: Run", "when": "workspace" },
-      { "id": "flutter.stop", "title": "Flutter: Stop", "when": "workspace" },
-      { "id": "flutter.hotReload", "title": "Flutter: Hot Reload", "when": "workspace" },
-      { "id": "flutter.hotRestart", "title": "Flutter: Hot Restart", "when": "workspace" },
-      { "id": "flutter.nextDevice", "title": "Flutter: Next Device", "when": "workspace" },
-      { "id": "flutter.pubGet", "title": "Flutter: Pub Get", "when": "workspace" },
-      { "id": "flutter.buildRunner", "title": "Flutter: Run build_runner", "when": "workspace" },
-      { "id": "flutter.clean", "title": "Flutter: Clean", "when": "workspace" },
-      { "id": "flutter.createProject", "title": "Flutter: Create Project", "when": "workspace" },
-      { "id": "flutter.doctor", "title": "Flutter: Run Flutter Doctor", "when": "workspace" },
-      { "id": "flutter.upgrade", "title": "Flutter: Run Flutter Upgrade", "when": "workspace" },
-      { "id": "flutter.test", "title": "Flutter: Run Tests", "when": "workspace" },
-      { "id": "flutter.testCoverage", "title": "Flutter: Run Tests with Coverage", "when": "workspace" }
+      {
+        "id": "flutter.run",
+        "title": "Flutter: Run",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.runProfile",
+        "title": "Flutter: Run (Profile)",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.runRelease",
+        "title": "Flutter: Run (Release)",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.attach",
+        "title": "Flutter: Attach",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.stop",
+        "title": "Flutter: Stop",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.hotReload",
+        "title": "Flutter: Hot Reload",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.hotRestart",
+        "title": "Flutter: Hot Restart",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.nextDevice",
+        "title": "Flutter: Next Device",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.inspectWidget",
+        "title": "Flutter: Toggle Widget Inspector",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.debugPaint",
+        "title": "Flutter: Toggle Debug Painting",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.performanceOverlay",
+        "title": "Flutter: Toggle Performance Overlay",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.overridePlatform",
+        "title": "Flutter: Override Platform",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.toggleBrightness",
+        "title": "Flutter: Toggle Brightness",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.screenshot",
+        "title": "Flutter: Save Screenshot",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.openDevTools",
+        "title": "Flutter: Open DevTools",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.dumpWidgets",
+        "title": "Flutter: Dump Widget Tree",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.dumpRenderTree",
+        "title": "Flutter: Dump Render Tree",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubGet",
+        "title": "Flutter: Get Packages",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubUpgrade",
+        "title": "Flutter: Upgrade Packages",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubUpgradeMajor",
+        "title": "Flutter: Upgrade Packages (--major-versions)",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubOutdated",
+        "title": "Flutter: List Outdated Packages",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubAdd",
+        "title": "Flutter: Add Dependency",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.buildRunner",
+        "title": "Flutter: Run build_runner",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.genL10n",
+        "title": "Flutter: Generate Localizations",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.clean",
+        "title": "Flutter: Clean Project",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.analyze",
+        "title": "Flutter: Analyze",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.format",
+        "title": "Flutter: Format",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.fixApply",
+        "title": "Flutter: Apply Fixes",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.test",
+        "title": "Flutter: Run Tests",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.testCoverage",
+        "title": "Flutter: Run Tests with Coverage",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.createProject",
+        "title": "Flutter: Create Project",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.doctor",
+        "title": "Flutter: Run Flutter Doctor",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.upgrade",
+        "title": "Flutter: Run Flutter Upgrade",
+        "when": "workspace"
+      }
     ],
     "keybindings": [
-      { "command": "flutter.run", "key": "Mod+Shift+X", "when": "workspace" },
-      { "command": "flutter.hotReload", "key": "Mod+Shift+L", "when": "workspace" },
-      { "command": "flutter.hotRestart", "key": "Mod+Shift+K", "when": "workspace" },
-      { "command": "flutter.doctor", "key": "Mod+Shift+S", "when": "workspace" },
-      { "command": "flutter.test", "key": "Mod+Shift+U", "when": "workspace" },
-      { "command": "flutter.createProject", "key": "Mod+Shift+P", "when": "workspace" }
+      {
+        "command": "flutter.run",
+        "key": "Mod+Shift+X",
+        "when": "workspace"
+      },
+      {
+        "command": "flutter.hotReload",
+        "key": "Mod+Shift+L",
+        "when": "workspace"
+      },
+      {
+        "command": "flutter.hotRestart",
+        "key": "Mod+Shift+K",
+        "when": "workspace"
+      },
+      {
+        "command": "flutter.doctor",
+        "key": "Mod+Shift+S",
+        "when": "workspace"
+      },
+      {
+        "command": "flutter.test",
+        "key": "Mod+Shift+U",
+        "when": "workspace"
+      },
+      {
+        "command": "flutter.createProject",
+        "key": "Mod+Shift+P",
+        "when": "workspace"
+      }
+    ],
+    "hooks": [
+      {
+        "event": "editor.save.before"
+      }
+    ],
+    "settings": [
+      {
+        "key": "hotReloadOnSave",
+        "title": "Hot reload on save",
+        "description": "Sends r to the running app after an explicit save of a Dart file in an editor tab. Autosave does not trigger it.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "formatOnSave",
+        "title": "Format Dart on save",
+        "description": "Runs dart format on a Dart file before an explicit save.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "sdkMode",
+        "title": "SDK command",
+        "description": "Auto uses fvm when the project pins a version (.fvmrc), fvm always uses it, flutter never does.",
+        "type": "string",
+        "enum": [
+          "auto",
+          "fvm",
+          "flutter"
+        ],
+        "enumLabels": [
+          "Auto (FVM when pinned)",
+          "Always FVM",
+          "Never FVM"
+        ],
+        "default": "auto"
+      }
     ],
     "statusBarItems": [
       {
@@ -54,7 +291,37 @@
         "tooltip": "Flutter device. Press to switch to the next one.",
         "command": "flutter.nextDevice"
       },
-      { "id": "state", "text": "Flutter: Idle", "icon": "layers", "tooltip": "Flutter run state" }
+      {
+        "id": "state",
+        "text": "Flutter: Idle",
+        "icon": "layers",
+        "tooltip": "Flutter run state"
+      }
+    ],
+    "newFiles": [
+      {
+        "id": "dart-file",
+        "title": "New Dart file",
+        "extension": ".dart"
+      },
+      {
+        "id": "stateless-widget",
+        "title": "New Flutter StatelessWidget",
+        "extension": ".dart",
+        "template": "templates/stateless_widget.dart"
+      },
+      {
+        "id": "stateful-widget",
+        "title": "New Flutter StatefulWidget",
+        "extension": ".dart",
+        "template": "templates/stateful_widget.dart"
+      },
+      {
+        "id": "animated-widget",
+        "title": "New Flutter widget with AnimationController",
+        "extension": ".dart",
+        "template": "templates/animated_widget.dart"
+      }
     ],
     "syntaxes": [
       {
@@ -63,7 +330,9 @@
         "scopeName": "source.dart",
         "path": "syntaxes/dart.tmLanguage.json",
         "configuration": "syntaxes/language-configuration.json",
-        "extensions": [".dart"]
+        "extensions": [
+          ".dart"
+        ]
       }
     ]
   }
