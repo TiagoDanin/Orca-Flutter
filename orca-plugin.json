@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "execution": "data",
+  "id": "flutter",
+  "name": "Flutter",
+  "version": "0.1.0",
+  "description": "Flutter and Dart support for Orca",
+  "author": { "name": "Tiago Danin" },
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.246" },
+  "contributes": {
+    "syntaxes": [
+      {
+        "id": "dart",
+        "title": "Dart",
+        "scopeName": "source.dart",
+        "path": "syntaxes/dart.tmLanguage.json",
+        "configuration": "syntaxes/language-configuration.json",
+        "extensions": [".dart"]
+      }
+    ]
+  }
+}
