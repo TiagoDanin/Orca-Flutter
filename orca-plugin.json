@@ -4,13 +4,17 @@
   "execution": "trusted-worker",
   "id": "flutter",
   "name": "Flutter",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Flutter and Dart support for Orca",
   "author": {
     "name": "Tiago Danin"
   },
   "license": "MIT",
   "icon": "assets/icon.png",
+  "cover": {
+    "path": "assets/cover.webp",
+    "alt": "Flutter for Orca: the Orca window with code, the Flutter panel buttons Run, Hot Reload, Devices and Analyze, and a phone preview"
+  },
   "engines": {
     "orca": ">=1.4.259"
   },
