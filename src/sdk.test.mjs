@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { findFvmRoot, flutterCommand } from './sdk.mjs'
+import { dartCommand, findFvmRoot, flutterCommand } from './sdk.mjs'
 
 function project(setup) {
   const root = mkdtempSync(join(tmpdir(), 'orca-flutter-'))
@@ -45,4 +45,17 @@ test('a monorepo package inherits the root pin', () => {
 
 test('no directory falls back to flutter', () => {
   assert.equal(flutterCommand(null), 'flutter')
+})
+
+test('sdkMode overrides the detection for flutter and dart', () => {
+  const plain = project(() => {})
+  const pinned = project((r) => writeFileSync(join(r, '.fvmrc'), '{}'))
+  assert.equal(flutterCommand(plain, 'fvm'), 'fvm flutter')
+  assert.equal(dartCommand(plain, 'fvm'), 'fvm dart')
+  assert.equal(flutterCommand(pinned, 'flutter'), 'flutter')
+  assert.equal(dartCommand(pinned, 'flutter'), 'dart')
+  assert.equal(dartCommand(pinned), 'fvm dart')
+  assert.equal(dartCommand(plain, 'auto'), 'dart')
+  rmSync(plain, { recursive: true })
+  rmSync(pinned, { recursive: true })
 })

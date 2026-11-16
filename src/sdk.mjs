@@ -9,14 +9,17 @@ export function findFvmRoot(dir) {
   }
 }
 
-const pinned = (dir) => Boolean(dir && findFvmRoot(dir))
+export const SDK_MODES = ['auto', 'fvm', 'flutter']
 
-// `fvm flutter` runs the SDK pinned by the project; without a pin, plain `flutter` from PATH.
-export function flutterCommand(dir) {
-  return pinned(dir) ? 'fvm flutter' : 'flutter'
+// mode: `auto` uses FVM only when the project pins it, `fvm` always, `flutter` never (the sdkMode setting).
+const useFvm = (dir, mode) => mode === 'fvm' || (mode !== 'flutter' && Boolean(dir && findFvmRoot(dir)))
+
+// `fvm flutter` runs the SDK pinned by the project; otherwise plain `flutter` from PATH.
+export function flutterCommand(dir, mode = 'auto') {
+  return useFvm(dir, mode) ? 'fvm flutter' : 'flutter'
 }
 
-// Same rule for `dart`, so build_runner runs on the pinned SDK too.
-export function dartCommand(dir) {
-  return pinned(dir) ? 'fvm dart' : 'dart'
+// Same rule for `dart`, so build_runner, analyze and format run on the pinned SDK too.
+export function dartCommand(dir, mode = 'auto') {
+  return useFvm(dir, mode) ? 'fvm dart' : 'dart'
 }
