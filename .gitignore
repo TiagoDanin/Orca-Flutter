@@ -1,0 +1,3 @@
+# Written by the flutter CLI when it runs from this folder (the tests and the plugin do that)
+.flutter
+.flutter_tool_state
