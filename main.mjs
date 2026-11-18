@@ -25,6 +25,8 @@ const TERMINAL_COMMANDS = {
   clean: { tool: 'flutter', title: 'Flutter: Clean', args: 'clean' },
   analyze: { tool: 'dart', title: 'Dart: Analyze', args: 'analyze' },
   format: { tool: 'dart', title: 'Dart: Format', args: 'format .' },
+  pubAddDev: { tool: 'flutter', title: 'Flutter: Pub Add (dev)', args: 'pub add --dev ', enter: false },
+  dartdoc: { tool: 'dart', title: 'Dart: Generate Documentation', args: 'doc' },
   fixApply: { tool: 'dart', title: 'Dart: Fix', args: 'fix --apply' }
 }
 
@@ -74,7 +76,19 @@ export default async function activate(orca) {
     stop: () => session.sendKey('q'),
     hotReload: () => session.sendKey('r', 'reloading'),
     hotRestart: () => session.sendKey('R', 'restarting'),
-    nextDevice: () => session.nextDevice()
+    nextDevice: () => session.nextDevice(),
+    ...Object.fromEntries(
+      ['repaintRainbow', 'slowAnimations', 'debugBanner', 'paintBaselines', 'cancelInspectWidget'].map((id) => [id, () => session.vm(id)])
+    ),
+    rerun: () => session.rerun(),
+    copyVmServiceUri: () => session.copyUri('vm'),
+    copyDtdUri: () => session.copyUri('dtd'),
+    pubGetAll: () => session.allProjects('get'),
+    cleanAll: () => session.allProjects('clean'),
+    openInXcode: () => session.openInXcode(),
+    openInAndroidStudio: () => session.openInAndroidStudio(),
+    widgetPreview: () => session.widgetPreview(),
+    openSidebar: () => session.openSidebar()
   }
 
   for (const [id, action] of Object.entries(actions)) orca.commands.register(`flutter.${id}`, action)
@@ -88,6 +102,9 @@ export default async function activate(orca) {
   orca.panels.handle('flutter.selectDevice', async ({ id }) => ({ message: await session.selectDevice(id) }))
   orca.panels.handle('flutter.emulators', async () => ({ emulators: await session.emulators() }))
   orca.panels.handle('flutter.launchEmulator', async ({ id }) => ({ message: await session.launchEmulator(id) }))
+  orca.panels.handle('flutter.openDevToolsPage', async ({ page }) => ({ message: await session.openDevToolsPage({ page }) }))
+  orca.panels.handle('flutter.project', ({ platformTypes } = {}) => session.project(platformTypes))
+  orca.panels.handle('flutter.enablePlatform', async ({ platform }) => ({ message: await session.enablePlatform(platform) }))
   orca.panels.handle('flutter.analyze', () => session.analyze())
   orca.panels.handle('flutter.openFile', async ({ path }) => ({ message: await session.openFile(path) }))
 
@@ -111,6 +128,7 @@ export default async function activate(orca) {
     return result
   })
 
+  process.on('exit', () => session.dispose())
   await session.init()
   setInterval(() => void session.tick(), 2000)
 }

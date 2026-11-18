@@ -137,6 +137,16 @@
         "when": "workspace"
       },
       {
+        "id": "flutter.openSidebar",
+        "title": "Flutter: Open Sidebar",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.widgetPreview",
+        "title": "Flutter: Start Widget Preview",
+        "when": "workspace"
+      },
+      {
         "id": "flutter.pubGet",
         "title": "Flutter: Get Packages",
         "when": "workspace"
@@ -214,6 +224,76 @@
       {
         "id": "flutter.upgrade",
         "title": "Flutter: Run Flutter Upgrade",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.repaintRainbow",
+        "title": "Flutter: Toggle Repaint Rainbow",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.slowAnimations",
+        "title": "Flutter: Toggle Slow Animations",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.debugBanner",
+        "title": "Flutter: Toggle Debug-Mode Banner",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.paintBaselines",
+        "title": "Flutter: Toggle Baseline Painting",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.cancelInspectWidget",
+        "title": "Flutter: Cancel Widget Inspection",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.rerun",
+        "title": "Flutter: Rerun Last Run",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.copyVmServiceUri",
+        "title": "Flutter: Copy VM Service URI",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.copyDtdUri",
+        "title": "Flutter: Copy DTD URI",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubGetAll",
+        "title": "Flutter: Get Packages for All Projects",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.cleanAll",
+        "title": "Flutter: Clean All Projects",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.pubAddDev",
+        "title": "Flutter: Add Dev Dependency",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.dartdoc",
+        "title": "Flutter: Generate Documentation",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.openInXcode",
+        "title": "Flutter: Open in Xcode",
+        "when": "workspace"
+      },
+      {
+        "id": "flutter.openInAndroidStudio",
+        "title": "Flutter: Open in Android Studio",
         "when": "workspace"
       }
     ],
