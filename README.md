@@ -2,19 +2,22 @@
 
 Flutter and Dart support for [Orca](https://orca.dev), modeled on the `Dart-Code.flutter` and `Dart-Code.dart-code` VS Code extensions. Orca plugins cannot load VS Code extensions, so this is a separate plugin that covers what Orca's plugin API allows.
 
-Status: early. The pure logic is tested against the real `flutter` and `dart` CLIs, but the plugin has not been fully exercised inside a running Orca yet.
+Status: early. The pure logic is tested against the real `flutter` and `dart` CLIs. The sidebar, the DevTools pages and the widget preview were checked inside a running Orca. A full run on a device (debug session events in the sidebar, the VM service toggles through the panel) was only checked in parts: the toggles against a real VM service, the sidebar without a session.
 
 ## What it does
 
 | Area | Features |
 | --- | --- |
-| Run | `flutter run`, profile, release and attach on the selected device. One run per plugin; Run focuses the existing terminal. |
+| Run | `flutter run`, profile, release and attach on the selected device, and Rerun. One run per plugin; Run focuses the existing terminal. |
 | Hot reload | Reload, restart and stop from the palette, shortcuts or panel. Optional reload on save. |
-| Debug tools | Widget inspector, debug paint, performance overlay, platform, brightness, screenshot, widget and render tree dumps, DevTools. |
-| Devices | Device list from `flutter devices --machine`, emulator list and launch. Pressing the device in the status bar switches to the next one. |
+| Debug tools | Widget inspector (and cancel), debug paint, repaint rainbow, slow animations, debug banner, baselines, performance overlay, platform, brightness, screenshot, widget and render tree dumps. The ones without a `flutter run` key go through the VM service, like Dart-Code. |
+| Flutter sidebar | `Flutter: Open Sidebar` opens the same sidebar the VS Code extension shows (Debug Sessions, Devices, DevTools, DevTools Extensions) in a browser tab inside Orca, split to the right. DevTools draws it; the plugin provides the `Editor` service in the Dart Tooling Daemon (devices, debug sessions, select device, enable platform, hot reload and restart, open DevTools page, navigate to code). |
+| DevTools | Inspector, Performance, CPU Profiler, Memory, Network, Logging, App Size, Deep Links, DTD Tools and the extensions of your packages (`/<name>_ext`) open in a tab inside Orca, connected to the running app. The plugin starts its own DTD and DevTools server, and registers the app's VM service in DTD. |
+| Widget Preview | `Flutter: Start Widget Preview` runs `flutter widget-preview start --machine --web-server` wired to the same DTD and DevTools server, and opens it in a tab inside Orca. |
+| Devices | Device list from `flutter devices --machine` with the selected one marked, "Enable web/macos/android for this project" for the platforms of your devices and emulators that the project lacks (`flutter config --enable-<p>` if disabled, then `flutter create --platforms <p> --empty .`, as Dart-Code does), emulator list and launch. Pressing the device in the status bar switches to the next one. |
 | Status bar | Selected device and run state (idle, starting, running, reloading, restarting). |
 | Problems | `dart analyze` results in a list. Clicking a problem opens the file. Dart Fix and Dart Format buttons. |
-| Project | Pub get, upgrade, outdated and add, build_runner, gen-l10n, clean, tests and coverage, Flutter doctor, upgrade and create. |
+| Project | Pub get, upgrade, outdated and add (and add dev), build_runner, gen-l10n, clean, get and clean for all projects, dart doc, tests and coverage, Flutter doctor, upgrade and create, open in Xcode and Android Studio, copy the VM service and DTD URIs. |
 | Files | Dart syntax highlighting, and New Dart file, StatelessWidget, StatefulWidget and AnimationController widget in the tab bar + menu. |
 
 ## FVM
@@ -52,10 +55,13 @@ Settings, under the plugin in Orca's Settings:
 
 Orca has no contribution point for these, so they are not part of the plugin:
 
-- Breakpoints and stepping in the editor. DevTools opens in the system browser and has a debugger page.
+- Breakpoints and stepping in the editor. DevTools has a debugger page, and it opens in a tab.
 - Completion, hover and quick fixes (no language server support).
 - Inline snippets. Templates for new files replace them.
-- Commands on the active editor file, Flutter Outline and the widget inspector inside the editor.
+- Commands on the active editor file (go to super, imports, tests, sort members, toggle comment kind, fix all in workspace).
+- The Flutter Property Editor. The page needs the cursor position of the active editor (`Editor.getActiveLocation`) and the analysis server over DTD. Orca gives plugins no cursor events, so it loads and never shows a widget.
+- Panels inside the Orca sidebar for DevTools. A panel frame cannot embed a page (`frame-src 'none'`, no network), so DevTools, the sidebar and the widget preview are browser tabs opened with `orca tab create`. This needs the `orca` CLI; the plugin looks for `ORCA_CLI`, the macOS app bundle and `orca` on PATH.
+- DevTools pages and the sidebar need a local workspace, since the plugin starts `dart tooling-daemon` and `dart devtools` there. They stop when the worker restarts; pids are kept in plugin storage and stopped on the next start.
 
 Also not implemented: an explicit SDK path (PowerShell and cmd quote differently), creating emulators, opening in Android Studio or Xcode.
 
