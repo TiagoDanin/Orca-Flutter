@@ -66,3 +66,10 @@ test('every action id the panel triggers exists in the manifest', () => {
   assert.ok(ids.length > 0)
   for (const id of ids) assert.ok(declared.has(id), id)
 })
+
+test('the panel DevTools pages match the ones in run.mjs', async () => {
+  const { DEVTOOLS_PAGES } = await import('./run.mjs')
+  const source = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')
+  const ids = [...source.matchAll(/\{ id: '([a-z-]+)', title: '[^']+', icon: '[a-z-]+' \}/g)].map((m) => m[1])
+  assert.deepEqual(ids, DEVTOOLS_PAGES.map((p) => p.id))
+})

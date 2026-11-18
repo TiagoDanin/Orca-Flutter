@@ -21,7 +21,7 @@ test('device ids with shell characters are refused', () => {
 test('parseDevices keeps supported devices and ignores text around the JSON', () => {
   const out = `Downloading stuff...\n[{"name":"Pixel 7","id":"emulator-5554","isSupported":true,"targetPlatform":"android-x64"},` +
     `{"name":"Old","id":"old","isSupported":false},{"name":"Bad","id":"a;b","isSupported":true}]\n`
-  assert.deepEqual(parseDevices(out), [{ id: 'emulator-5554', name: 'Pixel 7', platform: 'android-x64' }])
+  assert.deepEqual(parseDevices(out), [{ id: 'emulator-5554', name: 'Pixel 7', platform: 'android-x64', platformType: 'android' }])
   assert.throws(() => parseDevices('no json here'), /no JSON/)
 })
 
@@ -35,7 +35,7 @@ test('parseEmulators reads the table from `flutter emulators` (real output)', ()
     '',
     "To run an emulator, run 'flutter emulators --launch <emulator id>'."
   ].join('\n')
-  assert.deepEqual(parseEmulators(out), [{ id: 'FlutterOnly', name: 'FlutterOnly', platform: 'android' }])
+  assert.deepEqual(parseEmulators(out), [{ id: 'FlutterOnly', name: 'FlutterOnly', platform: 'android', platformType: 'android' }])
   assert.deepEqual(parseEmulators('No emulators available.'), [])
 })
 
@@ -105,4 +105,71 @@ test('formatDart formats through the real dart and leaves broken code alone', { 
   assert.equal(await formatDart('dart', 'void main(){print( 1+2 );}\n', process.cwd()), 'void main() {\n  print(1 + 2);\n}\n')
   assert.equal(await formatDart('dart', 'void main( {', process.cwd()), null)
   assert.equal(await formatDart('definitely-not-a-command', 'x', process.cwd()), null)
+})
+
+import { pageUrl, parseDevToolsLine, parseDtdLine } from './dtd.mjs'
+import { DEVTOOLS_PAGES, enablablePlatforms, platformTypeOf, packageRoots, parseExtensionName } from './run.mjs'
+
+test('pageUrl builds DevTools page urls for a server root and for the flutter run link', () => {
+  assert.equal(pageUrl('http://127.0.0.1:9101/', 'memory', { vmServiceUri: 'http://127.0.0.1:5000/abc=/' }),
+    'http://127.0.0.1:9101/memory?uri=http%3A%2F%2F127.0.0.1%3A5000%2Fabc%3D%2F')
+  // web: the link has a token and /devtools/ in the path, and that prefix must stay
+  assert.equal(pageUrl('http://127.0.0.1:50374/TOKEN=/devtools/?uri=ws://x/ws', 'provider_ext'),
+    'http://127.0.0.1:50374/TOKEN=/devtools/provider_ext')
+  assert.equal(pageUrl('http://127.0.0.1:9101', 'editorSidebar', { ide: true }), 'http://127.0.0.1:9101/editorSidebar?ide=VSCode&dashTool=orca&dashIdeName=Orca')
+  assert.equal(pageUrl('javascript:alert(1)', 'memory'), null)
+  assert.equal(pageUrl('http://127.0.0.1:9101/', '../x'), null)
+  assert.equal(pageUrl(undefined, 'memory'), null)
+  for (const p of DEVTOOLS_PAGES) assert.ok(pageUrl('http://localhost:1/', p.id))
+})
+
+test('parseDtdLine and parseDevToolsLine read the machine output of dart', () => {
+  assert.deepEqual(parseDtdLine('{"tooling_daemon_details":{"uri":"ws://127.0.0.1:1/x=","trusted_client_secret":"s"}}'), { uri: 'ws://127.0.0.1:1/x=', secret: 's' })
+  assert.equal(parseDtdLine('Hello'), null)
+  assert.deepEqual(parseDevToolsLine('{"event":"server.started","method":"server.started","params":{"host":"127.0.0.1","port":9101,"pid":1}}'), { host: '127.0.0.1', port: 9101 })
+  assert.equal(parseDevToolsLine('{"event":"server.dtdStarted","params":{"uri":"ws://x"}}'), null)
+})
+
+test('platformTypeOf maps flutter targetPlatform values', () => {
+  assert.equal(platformTypeOf('android-arm64'), 'android')
+  assert.equal(platformTypeOf('darwin'), 'macos')
+  assert.equal(platformTypeOf('web-javascript'), 'web')
+  assert.equal(platformTypeOf('ios'), 'ios')
+  assert.equal(platformTypeOf('wat'), null)
+})
+
+test('enablablePlatforms offers device platform types the project lacks', () => {
+  assert.deepEqual(enablablePlatforms(['android', 'ios'], ['android', 'macos', 'web', 'web']), ['macos', 'web'])
+  assert.deepEqual(enablablePlatforms([], ['android', 'bogus']), ['android'])
+})
+
+test('parseExtensionName reads the name key', () => {
+  assert.equal(parseExtensionName('name: provider\nversion: 0.0.1\nissueTracker: x\n'), 'provider')
+  assert.equal(parseExtensionName('# c\nname: "shared_preferences"\n'), 'shared_preferences')
+  assert.equal(parseExtensionName('version: 1\n'), null)
+})
+
+test('packageRoots resolves relative and file uris', () => {
+  const json = JSON.stringify({ packages: [{ rootUri: '../' }, { rootUri: 'file:///pub/provider-6.0.0' }, { rootUri: '../../x%20y' }] })
+  const roots = packageRoots(json, '/app/.dart_tool')
+  assert.deepEqual(roots, ['/app', '/pub/provider-6.0.0', '/x y'])
+})
+
+import { extractValue, nextValue, TOGGLES, vmWsUrl } from './vm.mjs'
+
+test('vmWsUrl turns the flutter run uri into the websocket', () => {
+  assert.equal(vmWsUrl('http://127.0.0.1:50374/7J-ZfKQdDhI=/'), 'ws://127.0.0.1:50374/7J-ZfKQdDhI=/ws')
+  assert.equal(vmWsUrl('http://127.0.0.1:50374/7J-ZfKQdDhI='), 'ws://127.0.0.1:50374/7J-ZfKQdDhI=/ws')
+  assert.equal(vmWsUrl('ws://127.0.0.1:1/x=/ws'), 'ws://127.0.0.1:1/x=/ws')
+  assert.equal(vmWsUrl('file:///x'), null)
+  assert.equal(vmWsUrl('nope'), null)
+})
+
+test('toggle values follow Dart-Code', () => {
+  assert.equal(extractValue('true'), true)
+  assert.equal(extractValue('1.0'), 1)
+  assert.equal(nextValue(TOGGLES.repaintRainbow, false), true)
+  assert.equal(nextValue(TOGGLES.repaintRainbow, true), false)
+  assert.equal(nextValue(TOGGLES.slowAnimations, 1), 5)
+  assert.equal(nextValue(TOGGLES.slowAnimations, 5), 1)
 })
