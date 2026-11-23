@@ -21,7 +21,7 @@ test('device ids with shell characters are refused', () => {
 test('parseDevices keeps supported devices and ignores text around the JSON', () => {
   const out = `Downloading stuff...\n[{"name":"Pixel 7","id":"emulator-5554","isSupported":true,"targetPlatform":"android-x64"},` +
     `{"name":"Old","id":"old","isSupported":false},{"name":"Bad","id":"a;b","isSupported":true}]\n`
-  assert.deepEqual(parseDevices(out), [{ id: 'emulator-5554', name: 'Pixel 7', platform: 'android-x64', platformType: 'android' }])
+  assert.deepEqual(parseDevices(out), [{ id: 'emulator-5554', name: 'Pixel 7', platform: 'android-x64', platformType: 'android', emulatorId: null }])
   assert.throws(() => parseDevices('no json here'), /no JSON/)
 })
 

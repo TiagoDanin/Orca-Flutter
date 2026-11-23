@@ -17,8 +17,8 @@ import {
   set
 } from 'orca'
 
-type Device = { id: string; name: string; platform: string; platformType?: string | null }
-type Emulator = { platformType?: string | null }
+type Device = { id: string; name: string; platform: string; platformType?: string | null; emulatorId?: string | null }
+type Emulator = { id: string; name: string; platform: string; platformType?: string | null }
 type Snapshot = {
   device: { id: string; name: string } | null
   state: string
@@ -44,7 +44,7 @@ const DEVTOOLS_PAGES: { id: string; title: string; icon: string; needsSession?: 
 const DEVICE_ICONS: Record<string, string> = { android: 'rocket', ios: 'rocket', web: 'globe' }
 
 const devices = atom<Device[]>([])
-const emulatorTypes = atom<(string | null | undefined)[]>([])
+const emulators = atom<Emulator[]>([])
 const selected = atom<string | null>(null)
 const session = atom<Snapshot['session']>(null)
 const project = atom<Project>({ platforms: [], extensions: [] })
@@ -74,7 +74,7 @@ const act = (id: string) => guarded(async () => (await plugin.request('flutter.d
 // Platform types of the devices and emulators decide which "Enable <platform>" rows show (Dart-Code device_manager.ts).
 async function refreshProject(): Promise<void> {
   try {
-    const types = [...read(devices).map((d) => d.platformType), ...read(emulatorTypes)].filter(Boolean)
+    const types = [...read(devices).map((d) => d.platformType), ...read(emulators).map((e) => e.platformType)].filter(Boolean)
     set(project, await plugin.request('flutter.project', { platformTypes: types }, { timeoutMs: 30000 }))
   } catch (error) {
     fail(error)
@@ -94,8 +94,8 @@ async function refreshDevices(): Promise<void> {
 
 async function refreshEmulators(): Promise<void> {
   try {
-    const { emulators } = await plugin.request('flutter.emulators', {}, { timeoutMs: 60000 })
-    set(emulatorTypes, (emulators as Emulator[]).map((e) => e.platformType))
+    const { emulators: list } = await plugin.request('flutter.emulators', {}, { timeoutMs: 60000 })
+    set(emulators, list as Emulator[])
     void refreshProject()
   } catch (error) {
     fail(error)
@@ -104,6 +104,14 @@ async function refreshEmulators(): Promise<void> {
 
 const pick = (id: string) =>
   guarded(async () => (await plugin.request('flutter.selectDevice', { id }, { timeoutMs: 60000 })).message)
+
+// Starts the emulator or simulator, then looks for the new device while it boots.
+const launchEmulator = (id: string) =>
+  guarded(async () => {
+    const message = (await plugin.request('flutter.launchEmulator', { id })).message
+    if (typeof setTimeout === 'function') for (const seconds of [15, 30, 60]) setTimeout(() => void refreshDevices(), seconds * 1000)
+    return message
+  })
 
 const enablePlatform = (platform: string) =>
   guarded(async () => (await plugin.request('flutter.enablePlatform', { platform })).message)
@@ -157,9 +165,15 @@ function Devices() {
   const list = read(devices)
   const chosen = read(selected)
   const { platforms } = read(project)
+  // As in the Dart-Code device picker: emulators that are not already running, as "Offline Emulators".
+  const running = new Set(list.map((d) => d.emulatorId).filter(Boolean))
+  const offline = read(emulators).filter((e) => !running.has(e.id))
   return (
     <Stack gap="xs">
-      <Heading>Devices</Heading>
+      <Row justify="between">
+        <Heading>Devices</Heading>
+        <IconButton icon="refresh" label="Refresh devices" onPress={() => void refreshDevices()} />
+      </Row>
       {list.length === 0 ? <Text muted>Connect a device or enable a platform</Text> : null}
       <List label="Devices">
         {list.map((d) => (
@@ -175,6 +189,16 @@ function Devices() {
           <ListItem key={p} title={`Enable ${p} for this project`} onPress={() => void enablePlatform(p)} />
         ))}
       </List>
+      {offline.length > 0 ? (
+        <>
+          <Text muted size="xs">Offline Emulators</Text>
+          <List label="Offline emulators">
+            {offline.map((e) => (
+              <ListItem key={e.id} icon="play" title={e.name} description={e.platform} onPress={() => void launchEmulator(e.id)} />
+            ))}
+          </List>
+        </>
+      ) : null}
     </Stack>
   )
 }

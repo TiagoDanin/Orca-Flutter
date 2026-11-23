@@ -14,7 +14,7 @@ export function parseDevices(stdout) {
   if (start < 0 || end < start) throw new Error('flutter devices returned no JSON')
   return JSON.parse(stdout.slice(start, end + 1))
     .filter((d) => d.isSupported !== false && validDeviceId(d.id))
-    .map((d) => ({ id: d.id, name: String(d.name ?? d.id), platform: String(d.targetPlatform ?? ''), platformType: platformTypeOf(d.targetPlatform) }))
+    .map((d) => ({ id: d.id, name: String(d.name ?? d.id), platform: String(d.targetPlatform ?? ''), platformType: platformTypeOf(d.targetPlatform), emulatorId: typeof d.emulatorId === 'string' ? d.emulatorId : null }))
 }
 
 // `flutter emulators` prints a table: "Id • Name • Manufacturer • Platform", then help text without bullets.
