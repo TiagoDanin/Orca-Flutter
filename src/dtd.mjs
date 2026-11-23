@@ -32,7 +32,8 @@ export function parseDtdLine(line) {
 export function parseDevToolsLine(line) {
   try {
     const message = JSON.parse(line)
-    if (message?.event === 'server.started' && Number.isInteger(message.params?.port)) {
+    // The host ends up in a shell command (widget preview), so it has to look like an address.
+    if (message?.event === 'server.started' && Number.isInteger(message.params?.port) && /^[A-Za-z0-9.:[\]-]+$/.test(String(message.params.host))) {
       return { host: String(message.params.host), port: message.params.port }
     }
   } catch {
@@ -53,15 +54,24 @@ export function killTree(pid) {
   }
 }
 
+// Image name of a Windows pid ("cmd.exe"), or '' when no such process runs.
+function windowsImageName(pid) {
+  const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  return /^"([^"]+)"/.exec(out.trim())?.[1] ?? ''
+}
+
 // Only kills a recorded pid that still runs one of our tools (the pid may have been reused since).
+// shortcut: on Windows the recorded pid is the shell (cmd.exe), so a reused pid that is another cmd.exe would still
+// match; Windows has no cheap command-line check, revisit if it ever bites.
 export function killStale(pids) {
   for (const pid of pids ?? []) {
+    if (!Number.isInteger(pid) || pid <= 1) continue
     try {
-      if (process.platform !== 'win32') {
-        const command = execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' })
-        if (!/tooling-daemon|devtools|widget-preview/.test(command)) continue
-      }
-      killTree(pid)
+      const ours =
+        process.platform === 'win32'
+          ? /^(cmd|dart|dartvm|dartaotruntime|fvm|flutter)\.(exe|bat)$/i.test(windowsImageName(pid))
+          : /tooling-daemon|devtools|widget-preview/.test(execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }))
+      if (ours) killTree(pid)
     } catch {
       // not running
     }
@@ -217,9 +227,9 @@ export async function startTooling({ dart, cwd }) {
   let devTools
   try {
     const dtd = await dtdProcess.found
-    const client = await new DtdClient(dtd.uri, dtd.secret).connect()
-    // The uri is printed by Dart itself, but it ends up in a shell command, so check it first.
+    // The uri is printed by Dart itself, but it is connected to and ends up in a shell command, so check it first.
     if (!/^ws:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_=+/-]*$/.test(dtd.uri)) throw new Error(`Unexpected DTD uri: ${dtd.uri}`)
+    const client = await new DtdClient(dtd.uri, dtd.secret).connect()
     devTools = spawnUntil(`${dart} devtools --machine --allow-embedding --dtd-uri ${dtd.uri}`, cwd, parseDevToolsLine)
     const server = await devTools.found
     const pids = [dtdProcess.child.pid, devTools.child.pid]

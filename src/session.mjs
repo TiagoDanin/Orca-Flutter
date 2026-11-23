@@ -582,7 +582,14 @@ export function createSession(orca, onChange) {
     const dir = JSON.parse(stdout.slice(stdout.indexOf('{')))['android-studio-dir']
     if (typeof dir !== 'string') throw new Error('Android Studio not found. Run: flutter config --android-studio-dir <path>')
     if (process.platform === 'darwin') await execFileAsync('open', ['-a', dirname(dir), android])
-    else await execFileAsync(join(dir, 'bin', process.platform === 'win32' ? 'studio64.exe' : 'studio.sh'), [android])
+    else {
+      const studio = join(dir, 'bin', process.platform === 'win32' ? 'studio64.exe' : 'studio.sh')
+      if (!existsSync(studio)) throw new Error(`Android Studio not found at ${studio}`)
+      // The IDE runs until the user closes it, so start it detached instead of waiting for it to exit.
+      const child = spawn(studio, [android], { detached: true, stdio: 'ignore' })
+      child.on('error', () => {})
+      child.unref()
+    }
     return 'Opened android in Android Studio'
   }
 

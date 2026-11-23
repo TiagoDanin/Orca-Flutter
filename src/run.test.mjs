@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { execSync } from 'node:child_process'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 import { formatDart } from './format.mjs'
 import {
   detectState,
@@ -102,8 +103,9 @@ const hasDart = (() => {
 })()
 
 test('formatDart formats through the real dart and leaves broken code alone', { skip: !hasDart }, async () => {
-  assert.equal(await formatDart('dart', 'void main(){print( 1+2 );}\n', process.cwd()), 'void main() {\n  print(1 + 2);\n}\n')
-  assert.equal(await formatDart('dart', 'void main( {', process.cwd()), null)
+  // A long limit: this checks the output, not the speed (a cold `dart` start can take over the 1.5 s the save hook allows).
+  assert.equal(await formatDart('dart', 'void main(){print( 1+2 );}\n', process.cwd(), 20_000), 'void main() {\n  print(1 + 2);\n}\n')
+  assert.equal(await formatDart('dart', 'void main( {', process.cwd(), 20_000), null)
   assert.equal(await formatDart('definitely-not-a-command', 'x', process.cwd()), null)
 })
 
@@ -150,9 +152,10 @@ test('parseExtensionName reads the name key', () => {
 })
 
 test('packageRoots resolves relative and file uris', () => {
-  const json = JSON.stringify({ packages: [{ rootUri: '../' }, { rootUri: 'file:///pub/provider-6.0.0' }, { rootUri: '../../x%20y' }] })
-  const roots = packageRoots(json, '/app/.dart_tool')
-  assert.deepEqual(roots, ['/app', '/pub/provider-6.0.0', '/x y'])
+  // Built with resolve() and pathToFileURL() so the expectation holds on Windows too (file:///pub needs a drive there).
+  const absolute = resolve('/pub/provider-6.0.0')
+  const json = JSON.stringify({ packages: [{ rootUri: '../' }, { rootUri: pathToFileURL(absolute).href }, { rootUri: '../../x%20y' }] })
+  assert.deepEqual(packageRoots(json, resolve('/app/.dart_tool')), [resolve('/app'), absolute, resolve('/x y')])
 })
 
 import { extractValue, nextValue, TOGGLES, vmWsUrl } from './vm.mjs'
@@ -163,6 +166,17 @@ test('vmWsUrl turns the flutter run uri into the websocket', () => {
   assert.equal(vmWsUrl('ws://127.0.0.1:1/x=/ws'), 'ws://127.0.0.1:1/x=/ws')
   assert.equal(vmWsUrl('file:///x'), null)
   assert.equal(vmWsUrl('nope'), null)
+})
+
+test('vmWsUrl only connects to this machine, because the uri comes from the app output', () => {
+  assert.equal(vmWsUrl('http://localhost:1/x=/'), 'ws://localhost:1/x=/ws')
+  assert.equal(vmWsUrl('http://[::1]:1/x=/'), 'ws://[::1]:1/x=/ws')
+  assert.equal(vmWsUrl('http://evil.example:80/x=/'), null)
+  assert.equal(vmWsUrl('http://192.168.0.9:1/x=/'), null)
+})
+
+test('parseDevToolsLine refuses a host that is not a plain address', () => {
+  assert.equal(parseDevToolsLine('{"event":"server.started","params":{"host":"x; calc","port":9101}}'), null)
 })
 
 test('toggle values follow Dart-Code', () => {

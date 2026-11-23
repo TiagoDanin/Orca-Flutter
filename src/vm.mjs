@@ -10,9 +10,13 @@ export const TOGGLES = {
 }
 
 // The VM service uri `flutter run` prints is http://127.0.0.1:PORT/TOKEN=/ ; the socket is the same path + ws.
+// The uri is read from the terminal, where the app's own output also lands, so only this machine is accepted.
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]'])
+
 export function vmWsUrl(uri) {
   try {
     const url = new URL(uri)
+    if (!LOOPBACK.has(url.hostname)) return null
     if (url.protocol === 'http:') url.protocol = 'ws:'
     else if (url.protocol === 'https:') url.protocol = 'wss:'
     else if (url.protocol !== 'ws:' && url.protocol !== 'wss:') return null
@@ -43,6 +47,11 @@ export function createVmClient(uri) {
     let next = 1
     const pending = new Map()
     socket.addEventListener('error', () => reject(new Error(`Could not connect to the VM service at ${url}`)))
+    // A call in flight when the socket drops would otherwise wait for the panel's timeout.
+    socket.addEventListener('close', () => {
+      for (const { reject: fail } of pending.values()) fail(new Error('VM service connection closed'))
+      pending.clear()
+    })
     socket.addEventListener('message', (event) => {
       const message = JSON.parse(String(event.data))
       const entry = pending.get(message.id)

@@ -69,7 +69,8 @@ async function guarded(work: () => Promise<string | void>): Promise<void> {
   }
 }
 
-const act = (id: string) => guarded(async () => (await plugin.request('flutter.do', { id })).message)
+// 120 s is the longest a request may wait: Pub Get for All Projects and starting DevTools take longer than the 30 s default.
+const act = (id: string) => guarded(async () => (await plugin.request('flutter.do', { id }, { timeoutMs: 120000 })).message)
 
 // Platform types of the devices and emulators decide which "Enable <platform>" rows show (Dart-Code device_manager.ts).
 async function refreshProject(): Promise<void> {
