@@ -1,15 +1,15 @@
-// Components panel: Orca draws these controls, so it follows the app theme with no HTML or CSS.
+// The Flutter Sidebar of the Dart-Code extension, drawn with Orca components: Debug Sessions, Devices,
+// DevTools and DevTools Extensions, in that order, then Flutter Tools. Orca panels have no header actions, so the
+// three buttons of the original header (new project, DevTools, doctor) live in the sections instead.
 import {
   atom,
-  Badge,
-  Button,
+  Collapsible,
+  Grid,
   Heading,
   IconButton,
-  Link,
   List,
   ListItem,
   Row,
-  Select,
   Stack,
   Text,
   plugin,
@@ -17,66 +17,77 @@ import {
   set
 } from 'orca'
 
-type Device = { id: string; name: string; platform: string }
-type Emulator = { id: string; name: string; platform: string }
-type Problem = { severity: string; code: string; file: string; line: number; message: string; display: string }
-type Links = { devTools?: string; vmService?: string }
-type Snapshot = { device: { id: string; name: string } | null; state: string; links: Links }
+type Device = { id: string; name: string; platform: string; platformType?: string | null; emulatorId?: string | null }
+type Emulator = { id: string; name: string; platform: string; platformType?: string | null }
+type Snapshot = {
+  device: { id: string; name: string } | null
+  state: string
+  session: { title: string; device: string | null } | null
+}
+type Project = { platforms: string[]; extensions: string[] }
+type Problem = { severity: string; file: string; line: number; message: string; display: string }
 
-const MAX_PROBLEMS = 50
+// DevTools routes in the order of the Dart-Code sidebar (mirrored in run.mjs DEVTOOLS_PAGES).
+// `needsSession`: greyed while nothing runs, as in the original.
+const DEVTOOLS_PAGES: { id: string; title: string; icon: string; needsSession?: boolean }[] = [
+  { id: 'inspector', title: 'Flutter Inspector', icon: 'search', needsSession: true },
+  { id: 'performance', title: 'Performance', icon: 'activity' },
+  { id: 'cpu-profiler', title: 'CPU Profiler', icon: 'gauge' },
+  { id: 'memory', title: 'Memory', icon: 'database' },
+  { id: 'network', title: 'Network', icon: 'globe' },
+  { id: 'logging', title: 'Logging', icon: 'file-text', needsSession: true },
+  { id: 'app-size', title: 'App Size', icon: 'package' },
+  { id: 'deep-links', title: 'Deep Links', icon: 'link' },
+  { id: 'dtd', title: 'DTD Tools', icon: 'settings' }
+]
+
+const DEVICE_ICONS: Record<string, string> = { android: 'rocket', ios: 'rocket', web: 'globe' }
 
 const devices = atom<Device[]>([])
 const emulators = atom<Emulator[]>([])
 const selected = atom<string | null>(null)
-const emulator = atom<string | null>(null)
-const runState = atom('idle')
-const links = atom<Links>({})
+const session = atom<Snapshot['session']>(null)
+const project = atom<Project>({ platforms: [], extensions: [] })
 const problems = atom<Problem[] | null>(null)
-const busy = atom(false)
 const result = atom<{ tone: 'success' | 'danger'; text: string } | null>(null)
-
-const TONES: Record<string, 'neutral' | 'warning' | 'success'> = {
-  idle: 'neutral',
-  starting: 'warning',
-  running: 'success',
-  reloading: 'warning',
-  restarting: 'warning'
-}
-
-const SEVERITY_ICONS: Record<string, string> = { error: 'error', warning: 'warning', info: 'info' }
 
 function fail(error: unknown): void {
   set(result, { tone: 'danger', text: error instanceof Error ? error.message : String(error) })
 }
 
 function apply(snapshot: Snapshot): void {
-  set(runState, snapshot.state)
   set(selected, snapshot.device?.id ?? null)
-  set(links, snapshot.links ?? {})
+  set(session, snapshot.session ?? null)
 }
 
-// Runs a request with the busy flag on and shows its message (or its error) under the buttons.
 async function guarded(work: () => Promise<string | void>): Promise<void> {
-  set(busy, true)
   try {
     const message = await work()
-    if (message) set(result, { tone: 'success', text: message })
+    set(result, message ? { tone: 'success', text: message } : null)
   } catch (error) {
     fail(error)
-  } finally {
-    set(busy, false)
   }
 }
 
-const act = (id: string) =>
-  guarded(async () => (await plugin.request('flutter.do', { id })).message)
+// 120 s is the longest a request may wait: Pub Get for All Projects and starting DevTools take longer than the 30 s default.
+const act = (id: string) => guarded(async () => (await plugin.request('flutter.do', { id }, { timeoutMs: 120000 })).message)
+
+// Platform types of the devices and emulators decide which "Enable <platform>" rows show (Dart-Code device_manager.ts).
+async function refreshProject(): Promise<void> {
+  try {
+    const types = [...read(devices).map((d) => d.platformType), ...read(emulators).map((e) => e.platformType)].filter(Boolean)
+    set(project, await plugin.request('flutter.project', { platformTypes: types }, { timeoutMs: 30000 }))
+  } catch (error) {
+    fail(error)
+  }
+}
 
 async function refreshDevices(): Promise<void> {
   try {
     const { devices: list, ...snapshot } = await plugin.request('flutter.devices', {}, { timeoutMs: 60000 })
     set(devices, list)
     apply(snapshot)
-    set(result, list.length === 0 ? { tone: 'danger', text: 'No devices found. Start an emulator or connect a device.' } : null)
+    void refreshProject()
   } catch (error) {
     fail(error)
   }
@@ -85,8 +96,8 @@ async function refreshDevices(): Promise<void> {
 async function refreshEmulators(): Promise<void> {
   try {
     const { emulators: list } = await plugin.request('flutter.emulators', {}, { timeoutMs: 60000 })
-    set(emulators, list)
-    set(emulator, list[0]?.id ?? null)
+    set(emulators, list as Emulator[])
+    void refreshProject()
   } catch (error) {
     fail(error)
   }
@@ -95,10 +106,20 @@ async function refreshEmulators(): Promise<void> {
 const pick = (id: string) =>
   guarded(async () => (await plugin.request('flutter.selectDevice', { id }, { timeoutMs: 60000 })).message)
 
-const launchEmulator = () => {
-  const id = read(emulator)
-  return id ? guarded(async () => (await plugin.request('flutter.launchEmulator', { id })).message) : Promise.resolve()
-}
+// Starts the emulator or simulator, then looks for the new device while it boots.
+const launchEmulator = (id: string) =>
+  guarded(async () => {
+    const message = (await plugin.request('flutter.launchEmulator', { id })).message
+    if (typeof setTimeout === 'function') for (const seconds of [15, 30, 60]) setTimeout(() => void refreshDevices(), seconds * 1000)
+    return message
+  })
+
+const enablePlatform = (platform: string) =>
+  guarded(async () => (await plugin.request('flutter.enablePlatform', { platform })).message)
+
+// A DevTools page opens in a browser tab inside Orca, connected to the running app.
+const openDevTools = (page: string) =>
+  guarded(async () => (await plugin.request('flutter.openDevToolsPage', { page }, { timeoutMs: 60000 })).message)
 
 const analyze = () =>
   guarded(async () => {
@@ -118,137 +139,251 @@ export function setup(ctx: { subscriptions: unknown[] }): void {
   void refreshEmulators()
 }
 
-function Action({ id, icon, children }: { id: string; icon: string; children: string }) {
+function DebugSessions() {
+  const current = read(session)
   return (
-    <Button variant="outline" icon={icon} disabled={read(busy)} onPress={() => void act(id)}>
-      {children}
-    </Button>
+    <Stack gap="xs">
+      <Heading>Debug Sessions</Heading>
+      {current ? (
+        <>
+          <List label="Debug sessions">
+            <ListItem icon="bug" title={current.title} description={current.device ?? undefined} current />
+          </List>
+          <Row gap="xs">
+            <IconButton icon="zap" label="Hot Reload" onPress={() => void act('hotReload')} />
+            <IconButton icon="refresh" label="Hot Restart" onPress={() => void act('hotRestart')} />
+            <IconButton icon="stop" label="Stop" onPress={() => void act('stop')} />
+          </Row>
+        </>
+      ) : (
+        <Text muted>No debug sessions</Text>
+      )}
+    </Stack>
+  )
+}
+
+function Devices() {
+  const list = read(devices)
+  const chosen = read(selected)
+  const { platforms } = read(project)
+  // As in the Dart-Code device picker: emulators that are not already running, as "Offline Emulators".
+  const running = new Set(list.map((d) => d.emulatorId).filter(Boolean))
+  const offline = read(emulators).filter((e) => !running.has(e.id))
+  return (
+    <Stack gap="xs">
+      <Row justify="between">
+        <Heading>Devices</Heading>
+        <IconButton icon="refresh" label="Refresh devices" onPress={() => void refreshDevices()} />
+      </Row>
+      {list.length === 0 ? <Text muted>Connect a device or enable a platform</Text> : null}
+      <List label="Devices">
+        {list.map((d) => (
+          <ListItem
+            key={d.id}
+            icon={DEVICE_ICONS[d.platformType ?? ''] ?? 'terminal'}
+            title={d.name}
+            current={d.id === chosen}
+            onPress={() => void pick(d.id)}
+          />
+        ))}
+        {platforms.map((p) => (
+          <ListItem key={p} title={`Enable ${p} for this project`} onPress={() => void enablePlatform(p)} />
+        ))}
+      </List>
+      {offline.length > 0 ? (
+        <>
+          <Text muted size="xs">Offline Emulators</Text>
+          <List label="Offline emulators">
+            {offline.map((e) => (
+              <ListItem key={e.id} icon="play" title={e.name} description={e.platform} onPress={() => void launchEmulator(e.id)} />
+            ))}
+          </List>
+        </>
+      ) : null}
+    </Stack>
+  )
+}
+
+function DevTools() {
+  const running = read(session) !== null
+  const { extensions } = read(project)
+  return (
+    <Stack gap="xs">
+      <Row justify="between">
+        <Heading>DevTools</Heading>
+        <IconButton icon="open-external" label="Open DevTools in the browser" onPress={() => void act('openDevTools')} />
+      </Row>
+      <Grid columns={2} gap="xs">
+        {[0, 1].map((column) => (
+          <List key={column} label={column === 0 ? 'DevTools pages' : 'More DevTools pages'}>
+            {DEVTOOLS_PAGES.filter((_, i) => i % 2 === column).map((p) => (
+              <ListItem
+                key={p.id}
+                icon={p.icon}
+                title={p.title}
+                disabled={p.needsSession && !running}
+                onPress={() => void openDevTools(p.id)}
+              />
+            ))}
+          </List>
+        ))}
+      </Grid>
+      {extensions.length > 0 ? (
+        <>
+          <Heading>DevTools Extensions</Heading>
+          <List label="DevTools extensions">
+            {extensions.map((name) => (
+              <ListItem key={name} icon="puzzle" title={name} disabled={!running} onPress={() => void openDevTools(`${name}_ext`)} />
+            ))}
+          </List>
+        </>
+      ) : null}
+    </Stack>
+  )
+}
+
+type Tool = { id: string; title: string; icon: string }
+
+// What the Dart-Code extension spreads over the debug toolbar, the palette and the Problems, Testing and
+// Dependencies views. Orca has none of those, so they are grouped here, collapsed, under one heading.
+const TOOL_GROUPS: { title: string; tools: Tool[] }[] = [
+  {
+    title: 'Run',
+    tools: [
+      { id: 'run', title: 'Run', icon: 'play' },
+      { id: 'runProfile', title: 'Profile', icon: 'gauge' },
+      { id: 'runRelease', title: 'Release', icon: 'rocket' },
+      { id: 'attach', title: 'Attach', icon: 'link' },
+      { id: 'rerun', title: 'Rerun', icon: 'refresh' }
+    ]
+  },
+  {
+    title: 'Debug',
+    tools: [
+      { id: 'inspectWidget', title: 'Inspect Widget', icon: 'search' },
+      { id: 'cancelInspectWidget', title: 'Cancel Inspect', icon: 'close' },
+      { id: 'debugPaint', title: 'Debug Paint', icon: 'edit' },
+      { id: 'repaintRainbow', title: 'Repaint Rainbow', icon: 'edit' },
+      { id: 'slowAnimations', title: 'Slow Animations', icon: 'pause' },
+      { id: 'debugBanner', title: 'Debug Banner', icon: 'flag' },
+      { id: 'paintBaselines', title: 'Baselines', icon: 'code' },
+      { id: 'performanceOverlay', title: 'Perf Overlay', icon: 'activity' },
+      { id: 'overridePlatform', title: 'Platform', icon: 'layers' },
+      { id: 'toggleBrightness', title: 'Brightness', icon: 'star' },
+      { id: 'screenshot', title: 'Screenshot', icon: 'download' },
+      { id: 'dumpWidgets', title: 'Widget Tree', icon: 'file-text' },
+      { id: 'dumpRenderTree', title: 'Render Tree', icon: 'file-text' }
+    ]
+  },
+  {
+    title: 'Project',
+    tools: [
+      { id: 'pubGet', title: 'Pub Get', icon: 'download' },
+      { id: 'pubGetAll', title: 'Pub Get (all)', icon: 'download' },
+      { id: 'pubUpgrade', title: 'Pub Upgrade', icon: 'upload' },
+      { id: 'pubOutdated', title: 'Pub Outdated', icon: 'info' },
+      { id: 'pubAdd', title: 'Pub Add', icon: 'add' },
+      { id: 'pubAddDev', title: 'Pub Add (dev)', icon: 'add' },
+      { id: 'buildRunner', title: 'build_runner', icon: 'hammer' },
+      { id: 'genL10n', title: 'Gen L10n', icon: 'globe' },
+      { id: 'clean', title: 'Clean', icon: 'delete' },
+      { id: 'cleanAll', title: 'Clean (all)', icon: 'delete' },
+      { id: 'dartdoc', title: 'Dart Doc', icon: 'book' }
+    ]
+  },
+  {
+    title: 'Tests',
+    tools: [
+      { id: 'test', title: 'Run Tests', icon: 'check' },
+      { id: 'testCoverage', title: 'Coverage', icon: 'gauge' }
+    ]
+  },
+  {
+    title: 'SDK',
+    tools: [
+      { id: 'createProject', title: 'Create Project', icon: 'add' },
+      { id: 'doctor', title: 'Flutter Doctor', icon: 'check' },
+      { id: 'upgrade', title: 'Flutter Upgrade', icon: 'download' },
+      { id: 'widgetPreview', title: 'Widget Preview', icon: 'layers' },
+      { id: 'openInXcode', title: 'Open in Xcode', icon: 'code' },
+      { id: 'openInAndroidStudio', title: 'Open in Android Studio', icon: 'code' },
+      { id: 'copyVmServiceUri', title: 'Copy VM URI', icon: 'copy' },
+      { id: 'copyDtdUri', title: 'Copy DTD URI', icon: 'copy' }
+    ]
+  }
+]
+
+// Two columns, like the DevTools pages above.
+function ToolList({ tools }: { tools: Tool[] }) {
+  return (
+    <Grid columns={2} gap="xs">
+      {[0, 1].map((column) => (
+        <List key={column} label={column === 0 ? 'Tools' : 'More tools'}>
+          {tools
+            .filter((_, i) => i % 2 === column)
+            .map((t) => (
+              <ListItem key={t.id} icon={t.icon} title={t.title} onPress={() => void act(t.id)} />
+            ))}
+        </List>
+      ))}
+    </Grid>
   )
 }
 
 function Problems() {
   const list = read(problems)
   if (list === null) return null
-  const shown = list.slice(0, MAX_PROBLEMS)
+  return (
+    <List label="Problems">
+      {list.slice(0, 50).map((p, i) => (
+        <ListItem
+          key={`${p.file}:${p.line}:${i}`}
+          icon={p.severity === 'error' ? 'error' : p.severity === 'warning' ? 'warning' : 'info'}
+          title={p.message}
+          description={`${p.display}:${p.line}`}
+          onPress={() => void openProblem(p.file)}
+        />
+      ))}
+    </List>
+  )
+}
+
+function FlutterTools() {
   return (
     <Stack gap="xs">
-      <List label="Problems">
-        {shown.map((p, i) => (
-          <ListItem
-            key={`${p.file}:${p.line}:${i}`}
-            icon={SEVERITY_ICONS[p.severity] ?? 'info'}
-            title={p.message}
-            description={`${p.display}:${p.line}`}
-            onPress={() => void openProblem(p.file)}
-          />
-        ))}
-      </List>
-      {list.length > shown.length ? <Text muted size="xs">{`${list.length - shown.length} more not shown.`}</Text> : null}
+      <Heading>Flutter Tools</Heading>
+      {TOOL_GROUPS.map((group) => (
+        <Collapsible key={group.title} title={group.title} defaultOpen={group.title === 'Run'}>
+          <ToolList tools={group.tools} />
+        </Collapsible>
+      ))}
+      <Collapsible title="Problems">
+        <Stack gap="xs">
+          <List label="Problem tools">
+            <ListItem icon="search" title="Analyze" onPress={() => void analyze()} />
+            <ListItem icon="wrench" title="Dart Fix" onPress={() => void act('fixApply')} />
+            <ListItem icon="code" title="Dart Format" onPress={() => void act('format')} />
+          </List>
+          <Problems />
+        </Stack>
+      </Collapsible>
     </Stack>
   )
 }
 
 export default function Panel() {
-  const state = read(runState)
   const last = read(result)
-  const link = read(links)
   return (
     <Stack gap="md">
-      <Row justify="between">
-        <Heading>Run</Heading>
-        <Badge tone={TONES[state] ?? 'neutral'}>{state}</Badge>
-      </Row>
-      <Row gap="xs">
-        <Select
-          label="Device"
-          labelHidden
-          placeholder="No device"
-          value={read(selected) ?? undefined}
-          options={read(devices).map((d) => ({ value: d.id, label: d.name }))}
-          onChange={(id) => void pick(id)}
-        />
-        <IconButton icon="refresh" label="Refresh devices" onPress={() => void refreshDevices()} />
-      </Row>
-      <Row gap="xs" wrap>
-        <Action id="run" icon="play">Run</Action>
-        <Action id="stop" icon="stop">Stop</Action>
-        <Action id="hotReload" icon="zap">Hot Reload</Action>
-        <Action id="hotRestart" icon="refresh">Hot Restart</Action>
-      </Row>
-      <Row gap="xs" wrap>
-        <Action id="runProfile" icon="gauge">Profile</Action>
-        <Action id="runRelease" icon="rocket">Release</Action>
-        <Action id="attach" icon="link">Attach</Action>
-      </Row>
-
-      <Heading>Debug</Heading>
-      <Row gap="xs" wrap>
-        <Action id="inspectWidget" icon="search">Widget Inspector</Action>
-        <Action id="debugPaint" icon="edit">Debug Paint</Action>
-        <Action id="performanceOverlay" icon="activity">Performance</Action>
-        <Action id="overridePlatform" icon="layers">Platform</Action>
-        <Action id="toggleBrightness" icon="star">Brightness</Action>
-        <Action id="screenshot" icon="download">Screenshot</Action>
-        <Action id="dumpWidgets" icon="file-text">Widget Tree</Action>
-        <Action id="dumpRenderTree" icon="file-text">Render Tree</Action>
-      </Row>
-      <Row gap="xs" wrap>
-        <Action id="openDevTools" icon="open-external">Open DevTools</Action>
-        {link.devTools ? <Link href={link.devTools}>DevTools link</Link> : null}
-        {link.vmService ? <Link href={link.vmService}>VM Service</Link> : null}
-      </Row>
-
-      <Heading>Emulators</Heading>
-      <Row gap="xs">
-        <Select
-          label="Emulator"
-          labelHidden
-          placeholder="No emulators"
-          value={read(emulator) ?? undefined}
-          options={read(emulators).map((e) => ({ value: e.id, label: e.name }))}
-          onChange={(id) => set(emulator, id)}
-        />
-        <IconButton icon="play" label="Launch emulator" disabled={!read(emulator)} onPress={() => void launchEmulator()} />
-      </Row>
-
-      <Heading>Problems</Heading>
-      <Row gap="xs" wrap>
-        <Button variant="outline" icon="search" disabled={read(busy)} onPress={() => void analyze()}>
-          Analyze
-        </Button>
-        <Action id="fixApply" icon="wrench">Dart Fix</Action>
-        <Action id="format" icon="code">Dart Format</Action>
-      </Row>
-      <Problems />
-
-      <Heading>Project</Heading>
-      <Row gap="xs" wrap>
-        <Action id="pubGet" icon="download">Pub Get</Action>
-        <Action id="pubUpgrade" icon="upload">Pub Upgrade</Action>
-        <Action id="pubOutdated" icon="info">Pub Outdated</Action>
-        <Action id="pubAdd" icon="add">Pub Add</Action>
-        <Action id="buildRunner" icon="hammer">build_runner</Action>
-        <Action id="genL10n" icon="globe">Gen L10n</Action>
-        <Action id="clean" icon="delete">Clean</Action>
-      </Row>
-
-      <Heading>Tests</Heading>
-      <Row gap="xs" wrap>
-        <Action id="test" icon="check">Run Tests</Action>
-        <Action id="testCoverage" icon="gauge">Coverage</Action>
-      </Row>
-
-      <Heading>SDK</Heading>
-      <Row gap="xs" wrap>
-        <Action id="doctor" icon="activity">Doctor</Action>
-        <Action id="upgrade" icon="download">Upgrade</Action>
-        <Action id="createProject" icon="add">Create Project</Action>
-      </Row>
-
+      <Stack gap="xs">
+        <Heading>Flutter for Orca</Heading>
+        <Text muted size="xs">(unofficial) by Tiago Danin</Text>
+      </Stack>
+      <DebugSessions />
+      <Devices />
+      <DevTools />
+      <FlutterTools />
       {last ? <Text tone={last.tone}>{last.text}</Text> : null}
-      <Text muted size="xs">
-        Runs in the focused workspace. A project with .fvmrc uses fvm flutter and fvm dart (see the sdkMode setting).
-      </Text>
     </Stack>
   )
 }

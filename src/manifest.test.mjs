@@ -5,6 +5,8 @@ import activate from '../main.mjs'
 
 const manifest = JSON.parse(readFileSync(new URL('../orca-plugin.json', import.meta.url), 'utf8'))
 
+const panelSources = () => readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')
+
 // Loads the worker against a fake Orca and returns what it registered.
 async function load() {
   const commands = []
@@ -53,16 +55,28 @@ test('the worker handles every hook the manifest declares', async () => {
 
 test('the panel only calls requests the worker handles', async () => {
   const { panels } = await load()
-  const source = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')
+  const source = panelSources()
   const requested = [...source.matchAll(/plugin\.request\('([^']+)'/g)].map((m) => m[1])
   assert.ok(requested.length > 0)
   for (const name of new Set(requested)) assert.ok(panels.includes(name), name)
 })
 
 test('every action id the panel triggers exists in the manifest', () => {
-  const source = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')
+  const source = panelSources()
   const declared = new Set(manifest.contributes.commands.map((c) => c.id.replace('flutter.', '')))
-  const ids = [...source.matchAll(/<Action id="([^"]+)"/g)].map((m) => m[1])
-  assert.ok(ids.length > 0)
+  const groups = source.slice(source.indexOf('const TOOL_GROUPS'), source.indexOf('function ToolList'))
+  const ids = [
+    ...source.matchAll(/act\('([^']+)'\)/g),
+    ...groups.matchAll(/\{ id: '([^']+)', title:/g)
+  ].map((m) => m[1])
+  assert.ok(ids.length > 20)
   for (const id of ids) assert.ok(declared.has(id), id)
+})
+
+test('the panel DevTools pages match the ones in run.mjs', async () => {
+  const { DEVTOOLS_PAGES } = await import('./run.mjs')
+  const full = readFileSync(new URL('./panel.tsx', import.meta.url), 'utf8')
+  const source = full.slice(full.indexOf('const DEVTOOLS_PAGES'), full.indexOf('const DEVICE_ICONS'))
+  const ids = [...source.matchAll(/\{ id: '([a-z-]+)', title: '[^']+', icon: '[a-z-]+'/g)].map((m) => m[1])
+  assert.deepEqual(ids, DEVTOOLS_PAGES.map((p) => p.id))
 })
