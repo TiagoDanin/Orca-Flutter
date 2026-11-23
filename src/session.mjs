@@ -17,7 +17,7 @@ import {
   validDeviceId
 } from './run.mjs'
 import { killStale, killTree, pageUrl, startTooling } from './dtd.mjs'
-import { cancelInspect, toggle as toggleVm } from './vm.mjs'
+import { cancelInspect, toggle as toggleVm, vmWsUrl } from './vm.mjs'
 import { dartCommand, flutterCommand, SDK_MODES } from './sdk.mjs'
 
 const execAsync = promisify(exec)
@@ -268,7 +268,8 @@ export function createSession(orca, onChange) {
           {
             id: 'flutter-run',
             name: run.title,
-            vmServiceUri: run.links.vmService,
+            // DTD only accepts the websocket form (http://... gives "Connection failed").
+            vmServiceUri: run.links.vmService ? (vmWsUrl(run.links.vmService) ?? undefined) : undefined,
             flutterMode: run.mode,
             flutterDeviceId: device?.id,
             debuggerType: 'Flutter',
@@ -398,7 +399,7 @@ export function createSession(orca, onChange) {
   async function openDevToolsPage({ page = 'inspector', debugSessionId, requiresDebugSession } = {}) {
     if (typeof page !== 'string' || !/^[A-Za-z0-9_-]+$/.test(page)) throw new Error(`Invalid DevTools page: ${String(page)}`)
     const t = await ensureTooling()
-    const vm = STATIC_PAGES.includes(page) ? undefined : run?.links.vmService
+    const vm = STATIC_PAGES.includes(page) || !run?.links.vmService ? undefined : (vmWsUrl(run.links.vmService) ?? undefined)
     if (requiresDebugSession && !vm) throw new Error('Run the app first')
     void debugSessionId
     await openOrcaTab(pageUrl(t.baseUrl, page, { vmServiceUri: vm }), { worktree: t.root })
