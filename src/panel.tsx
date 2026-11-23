@@ -1,5 +1,6 @@
 // The Flutter Sidebar of the Dart-Code extension, drawn with Orca components: Debug Sessions, Devices,
-// DevTools and DevTools Extensions, in that order, with the same three buttons in the header.
+// DevTools and DevTools Extensions, in that order, then Flutter Tools. Orca panels have no header actions, so the
+// three buttons of the original header (new project, DevTools, doctor) live in the sections instead.
 import {
   atom,
   Collapsible,
@@ -275,6 +276,8 @@ const TOOL_GROUPS: { title: string; tools: Tool[] }[] = [
   {
     title: 'SDK',
     tools: [
+      { id: 'createProject', title: 'Create Project', icon: 'add' },
+      { id: 'doctor', title: 'Flutter Doctor', icon: 'check' },
       { id: 'upgrade', title: 'Flutter Upgrade', icon: 'download' },
       { id: 'widgetPreview', title: 'Widget Preview', icon: 'layers' },
       { id: 'openInXcode', title: 'Open in Xcode', icon: 'code' },
@@ -347,11 +350,10 @@ export default function Panel() {
   const last = read(result)
   return (
     <Stack gap="md">
-      <Row gap="xs" justify="end">
-        <IconButton icon="add" label="Create New Flutter Project" onPress={() => void act('createProject')} />
-        <IconButton icon="wrench" label="Open DevTools" onPress={() => void act('openDevTools')} />
-        <IconButton icon="check" label="Run Flutter Doctor" onPress={() => void act('doctor')} />
-      </Row>
+      <Stack gap="xs">
+        <Heading>Flutter for Orca</Heading>
+        <Text muted size="xs">(unofficial) by Tiago Danin</Text>
+      </Stack>
       <DebugSessions />
       <Devices />
       <DevTools />

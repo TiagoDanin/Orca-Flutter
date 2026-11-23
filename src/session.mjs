@@ -4,6 +4,7 @@ import { basename, dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import {
+  DEVTOOLS_PAGES,
   detectState,
   extractLinks,
   isInside,
@@ -26,22 +27,57 @@ const execFileAsync = promisify(execFile)
 // The `orca` CLI opens a browser tab inside Orca (`orca tab create`). Where it lives depends on the install.
 const ORCA_CLIS = [process.env.ORCA_CLI, '/Applications/Orca.app/Contents/Resources/bin/orca', 'orca'].filter(Boolean)
 
+// Tab titles like the Dart-Code views: "Flutter DevTools: Inspector", extensions by name.
+const pageTitle = (page) => {
+  const known = DEVTOOLS_PAGES.find((p) => p.id === page)
+  return `Flutter DevTools: ${known ? known.title.replace(/^Flutter /, '') : page.replace(/_ext$/, '')}`
+}
+
 // Pages DevTools can show without a running app (Dart-Code isStaticTool).
 const STATIC_PAGES = ['deep-links']
 
-// `worktree` is the workspace folder: without it Orca uses the worktree of the calling process, which is not ours.
-async function openOrcaTab(url, { split, worktree } = {}) {
-  const args = ['tab', 'create', '--url', url, ...(split ? ['--split', split] : []), ...(worktree ? ['--worktree', `path:${worktree}`] : [])]
+// Runs the orca CLI (see ORCA_CLIS) and returns its stdout.
+async function orcaCli(args) {
   let last
   for (const cli of ORCA_CLIS) {
     try {
-      await execFileAsync(cli, args, { timeout: 20_000, windowsHide: true })
-      return
+      return (await execFileAsync(cli, args, { timeout: 20_000, windowsHide: true })).stdout
     } catch (error) {
       last = error
     }
   }
-  throw new Error(`Could not open a tab in Orca (${last?.message ?? 'orca CLI not found'}). Open ${url} in a browser.`)
+  throw last ?? new Error('orca CLI not found')
+}
+
+// A browser tab shows the page title, and DevTools pages have none (the tab would show the url). Waits for the
+// page to load, then sets the title and keeps it when the page tries to change it.
+async function titleTab(pageId, worktree, title) {
+  const where = worktree ? ['--worktree', `path:${worktree}`] : []
+  for (let i = 0; i < 40; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 750))
+    const tabs = JSON.parse(await orcaCli(['tab', 'list', ...where, '--json'])).result?.tabs ?? []
+    const tab = tabs.find((t) => t.browserPageId === pageId)
+    if (!tab) return // closed meanwhile
+    if (!tab.loaded) continue
+    if (!tab.active) await orcaCli(['tab', 'switch', '--page', pageId, ...where])
+    const expression = `(() => { const t = ${JSON.stringify(title)}; const set = () => { if (document.title !== t) document.title = t }; set(); new MutationObserver(set).observe(document.head, { childList: true, subtree: true, characterData: true }) })()`
+    await orcaCli(['eval', '--expression', expression, ...where])
+    return
+  }
+}
+
+// `worktree` is the workspace folder: without it Orca uses the worktree of the calling process, which is not ours.
+// `title` names the tab; it is set after the page loads, without making the caller wait.
+export async function openOrcaTab(url, { split, worktree, title } = {}) {
+  const args = ['tab', 'create', '--url', url, '--json', ...(split ? ['--split', split] : []), ...(worktree ? ['--worktree', `path:${worktree}`] : [])]
+  let out
+  try {
+    out = await orcaCli(args)
+  } catch (error) {
+    throw new Error(`Could not open a tab in Orca (${error?.message ?? 'orca CLI not found'}). Open ${url} in a browser.`)
+  }
+  const id = JSON.parse(out).result?.browserPageId
+  if (title && id) void titleTab(id, worktree, title).catch(() => {})
 }
 
 // Long-running sessions. All of them accept r, R and q in their terminal.
@@ -391,7 +427,7 @@ export function createSession(orca, onChange) {
 
   async function openSidebar() {
     const t = await ensureTooling()
-    await openOrcaTab(pageUrl(t.baseUrl, 'editorSidebar', { ide: true }), { split: 'right', worktree: t.root })
+    await openOrcaTab(pageUrl(t.baseUrl, 'editorSidebar', { ide: true }), { split: 'right', worktree: t.root, title: 'Flutter Sidebar' })
     return 'Opened the Flutter sidebar'
   }
 
@@ -402,7 +438,7 @@ export function createSession(orca, onChange) {
     const vm = STATIC_PAGES.includes(page) || !run?.links.vmService ? undefined : (vmWsUrl(run.links.vmService) ?? undefined)
     if (requiresDebugSession && !vm) throw new Error('Run the app first')
     void debugSessionId
-    await openOrcaTab(pageUrl(t.baseUrl, page, { vmServiceUri: vm }), { worktree: t.root })
+    await openOrcaTab(pageUrl(t.baseUrl, page, { vmServiceUri: vm }), { worktree: t.root, title: pageTitle(page) })
     return `Opened DevTools ${page}`
   }
 
@@ -410,7 +446,7 @@ export function createSession(orca, onChange) {
   // wired to the same DTD and DevTools server, and shown in a view instead of Chrome.
   async function widgetPreview() {
     if (preview && preview.child.exitCode === null) {
-      await openOrcaTab(preview.url, { worktree: preview.root })
+      await openOrcaTab(preview.url, { worktree: preview.root, title: 'Flutter Widget Preview' })
       return 'Opened the widget preview'
     }
     const ws = await focusedWorkspace(orca)
@@ -448,7 +484,7 @@ export function createSession(orca, onChange) {
       throw error
     })
     preview = { child, url, root: ws.path }
-    await openOrcaTab(url, { worktree: ws.path })
+    await openOrcaTab(url, { worktree: ws.path, title: 'Flutter Widget Preview' })
     return 'Opened the widget preview'
   }
 
