@@ -20,6 +20,7 @@ import {
 import { killStale, killTree, pageUrl, startTooling } from './dtd.mjs'
 import { cancelInspect, toggle as toggleVm, vmWsUrl } from './vm.mjs'
 import { dartCommand, flutterCommand, SDK_MODES } from './sdk.mjs'
+import { launchConfigurations as parseLaunchConfigurations, runCommandText } from './launch.mjs'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -129,6 +130,7 @@ export function createSession(orca, onChange) {
 
   const snapshot = () => ({
     device,
+    configuration,
     state: run?.state ?? 'idle',
     links: run?.links ?? {},
     session: run ? { title: run.title, device: run.device } : null
@@ -141,6 +143,7 @@ export function createSession(orca, onChange) {
   let tooling = null // Promise of { client, dtd, baseUrl, root, stop }: DTD + DevTools server, started on first use
   let preview = null // { child, url } of `flutter widget-preview start`
   let lastKind = 'run' // for Rerun
+  let configuration = null // name of the .vscode/launch.json entry Run appends args from
   let announced = '' // the debug session last sent to DTD, to send only changes
   let registeredVm = null
 
@@ -150,6 +153,9 @@ export function createSession(orca, onChange) {
   async function init() {
     killStale(await orca.storage.get('pids'))
     await orca.storage.set('pids', [])
+    const storedConfiguration = await orca.storage.get('configuration')
+    // A name is only a pick: it is resolved against launch.json on every run, so edits apply.
+    if (typeof storedConfiguration === 'string' && storedConfiguration !== '') configuration = storedConfiguration
     const stored = await orca.storage.get('device')
     // Storage is shared with the panel, so the stored id is input like any other.
     if (stored && validDeviceId(stored.id) && typeof stored.name === 'string') {
@@ -169,6 +175,33 @@ export function createSession(orca, onChange) {
     const ws = await focusedWorkspace(orca)
     const { stdout } = await runHere(`${ws.flutter} devices --machine`, ws)
     return parseDevices(stdout)
+  }
+
+  // The Dart and Flutter entries of the workspace's .vscode/launch.json, with their preLaunchTask command.
+  async function launchList() {
+    const ws = await focusedWorkspace(orca)
+    if (!ws.path) return []
+    const read = (file) => {
+      try {
+        return readFileSync(join(ws.path, '.vscode', file), 'utf8')
+      } catch {
+        return null
+      }
+    }
+    return parseLaunchConfigurations(read('launch.json'), read('tasks.json'))
+  }
+
+  async function configurations() {
+    return { configurations: await launchList(), selected: configuration }
+  }
+
+  async function selectConfiguration(name) {
+    const found = (await launchList()).find((c) => c.name === name)
+    if (!found) throw new Error(`Launch configuration not found: ${name}`)
+    configuration = found.name
+    await orca.storage.set('configuration', configuration)
+    onChange()
+    return `Configuration: ${configuration}`
   }
 
   async function choose(next) {
@@ -215,7 +248,9 @@ export function createSession(orca, onChange) {
       }
     }
     const ws = await focusedWorkspace(orca)
-    const text = `${ws.flutter} ${kind.args}${device ? ` -d ${device.id}` : ''}`
+    const chosen = configuration ? (await launchList()).find((c) => c.name === configuration) : null
+    if (configuration && !chosen) orca.log(`Launch configuration not found: ${configuration}`)
+    const text = runCommandText(`${ws.flutter} ${kind.args}`, chosen?.args ?? [], chosen?.preCommand ?? null, device?.id)
     const terminalId = await openTerminal(orca, ws.id, kind.title, text)
     setRun({ terminalId, state: 'starting', links: {}, title: kind.title.replace('Flutter: ', ''), device: device?.name ?? null, mode: kind.mode, root: ws.path })
     return text
@@ -618,6 +653,8 @@ export function createSession(orca, onChange) {
     snapshot,
     runCommand,
     devices,
+    launchConfigurations: configurations,
+    selectConfiguration,
     selectDevice,
     nextDevice,
     emulators,

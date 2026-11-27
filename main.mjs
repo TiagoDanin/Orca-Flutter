@@ -99,6 +99,8 @@ export default async function activate(orca) {
     return { message: await actions[id]() }
   })
   orca.panels.handle('flutter.devices', async () => ({ devices: await session.devices(), ...session.snapshot() }))
+  orca.panels.handle('flutter.launchConfigurations', () => session.launchConfigurations())
+  orca.panels.handle('flutter.selectConfiguration', async ({ name }) => ({ message: await session.selectConfiguration(name) }))
   orca.panels.handle('flutter.selectDevice', async ({ id }) => ({ message: await session.selectDevice(id) }))
   orca.panels.handle('flutter.emulators', async () => ({ emulators: await session.emulators() }))
   orca.panels.handle('flutter.launchEmulator', async ({ id }) => ({ message: await session.launchEmulator(id) }))

@@ -8,7 +8,7 @@ Status: early. The pure logic is tested against the real `flutter` and `dart` CL
 
 | Area | Features |
 | --- | --- |
-| Run | `flutter run`, profile, release and attach on the selected device, and Rerun. One run per plugin; Run focuses the existing terminal. |
+| Run | `flutter run`, profile, release and attach on the selected device, and Rerun. One run per plugin; Run focuses the existing terminal. Appends the args of the selected `.vscode/launch.json` entry and runs its `preLaunchTask` first. |
 | Hot reload | Reload, restart and stop from the palette, shortcuts or panel. Optional reload on save. |
 | Debug tools | Widget inspector (and cancel), debug paint, repaint rainbow, slow animations, debug banner, baselines, performance overlay, platform, brightness, screenshot, widget and render tree dumps. The ones without a `flutter run` key go through the VM service, like Dart-Code. |
 | Flutter sidebar | `Flutter: Open Sidebar` opens the same sidebar the VS Code extension shows (Debug Sessions, Devices, DevTools, DevTools Extensions) in a browser tab inside Orca, split to the right. DevTools draws it; the plugin provides the `Editor` service in the Dart Tooling Daemon (devices, debug sessions, select device, enable platform, hot reload and restart, open DevTools page, navigate to code). |
@@ -50,6 +50,20 @@ Settings, under the plugin in Orca's Settings:
 | `hotReloadOnSave` | on | Sends `r` to the running app after an explicit save of a Dart file. Autosave does not trigger it. |
 | `formatOnSave` | off | Runs `dart format` on a Dart file before an explicit save. |
 | `sdkMode` | auto | `auto` follows the FVM pin, `fvm` always uses FVM, `flutter` never does. |
+
+## Launch configurations
+
+Orca has no launch contribution point, so Run reads the workspace's `.vscode/launch.json` and
+`.vscode/tasks.json`, like Dart-Code:
+
+- The **Configuration** section at the top of the panel lists every `dart`/`flutter` entry. Click one to
+  select it; the choice is stored per plugin and resolved again on each run, so edits apply.
+- Run, Profile, Release and Attach append that entry's `args` (`--flavor uat --no-dds` …) and run its
+  `preLaunchTask` command before `flutter run`: `./setup_env.sh uat && fvm flutter run --flavor uat -d <device>`.
+- `preLaunchTask` matches a `label` in `.vscode/tasks.json`; a task with no `command` is skipped.
+- No entry selected: plain `flutter run`, as before.
+
+SSH workspaces have no local files, so the list is empty there.
 
 ## Limits
 

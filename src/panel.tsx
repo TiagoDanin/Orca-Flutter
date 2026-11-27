@@ -21,9 +21,11 @@ type Device = { id: string; name: string; platform: string; platformType?: strin
 type Emulator = { id: string; name: string; platform: string; platformType?: string | null }
 type Snapshot = {
   device: { id: string; name: string } | null
+  configuration: string | null
   state: string
   session: { title: string; device: string | null } | null
 }
+type LaunchConfiguration = { name: string; args: string[]; preLaunchTask: string | null; preCommand: string | null }
 type Project = { platforms: string[]; extensions: string[] }
 type Problem = { severity: string; file: string; line: number; message: string; display: string }
 
@@ -49,6 +51,8 @@ const selected = atom<string | null>(null)
 const session = atom<Snapshot['session']>(null)
 const project = atom<Project>({ platforms: [], extensions: [] })
 const problems = atom<Problem[] | null>(null)
+const configs = atom<LaunchConfiguration[]>([])
+const configuration = atom<string | null>(null)
 const result = atom<{ tone: 'success' | 'danger'; text: string } | null>(null)
 
 function fail(error: unknown): void {
@@ -57,6 +61,7 @@ function fail(error: unknown): void {
 
 function apply(snapshot: Snapshot): void {
   set(selected, snapshot.device?.id ?? null)
+  set(configuration, snapshot.configuration ?? null)
   set(session, snapshot.session ?? null)
 }
 
@@ -103,6 +108,24 @@ async function refreshEmulators(): Promise<void> {
   }
 }
 
+// The Dart and Flutter entries of .vscode/launch.json, as the Dart-Code extension lists them.
+async function refreshConfigurations(): Promise<void> {
+  try {
+    const found = await plugin.request('flutter.launchConfigurations', {}, { timeoutMs: 30000 })
+    set(configs, found.configurations)
+    set(configuration, found.selected ?? null)
+  } catch (error) {
+    fail(error)
+  }
+}
+
+const pickConfiguration = (name: string) =>
+  guarded(async () => {
+    const message = (await plugin.request('flutter.selectConfiguration', { name }, { timeoutMs: 30000 })).message
+    void refreshConfigurations()
+    return message
+  })
+
 const pick = (id: string) =>
   guarded(async () => (await plugin.request('flutter.selectDevice', { id }, { timeoutMs: 60000 })).message)
 
@@ -135,8 +158,33 @@ const openProblem = (file: string) =>
 /** Runs once before the first render; what it pushes to `subscriptions` ends with the panel. */
 export function setup(ctx: { subscriptions: unknown[] }): void {
   ctx.subscriptions.push(plugin.on('flutter.state', apply))
+  void refreshConfigurations()
   void refreshDevices()
   void refreshEmulators()
+}
+
+// Nothing to show without a launch.json, and most projects do not have one.
+function LaunchConfigurations() {
+  const list = read(configs)
+  const chosen = read(configuration)
+  if (list.length === 0) return null
+  return (
+    <Stack gap="xs">
+      <Heading>Configuration</Heading>
+      <List label="Launch configurations">
+        {list.map((c) => (
+          <ListItem
+            key={c.name}
+            icon="play"
+            title={c.name}
+            description={c.args.length > 0 ? c.args.join(' ') : undefined}
+            current={c.name === chosen}
+            onPress={() => void pickConfiguration(c.name)}
+          />
+        ))}
+      </List>
+    </Stack>
+  )
 }
 
 function DebugSessions() {
@@ -379,6 +427,7 @@ export default function Panel() {
         <Heading>Flutter for Orca</Heading>
         <Text muted size="xs">(unofficial) by Tiago Danin</Text>
       </Stack>
+      <LaunchConfigurations />
       <DebugSessions />
       <Devices />
       <DevTools />
